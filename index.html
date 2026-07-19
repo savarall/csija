@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Csija</title>
+    <link rel="icon" href="./icon-512.png" type="image/png"/>
+    <link rel="apple-touch-icon" href="./icon-512.png"/>
+    <meta name="apple-mobile-web-app-title" content="Csija"/>
+    <link rel="manifest" href="./site.webmanifest"/>
+    <meta name="theme-color" content="#121214"/>
+    <meta name="description" content="A free, ad-free, open-source white noise generator for babies. Pure JavaScript, works completely offline, and respects your privacy.">
+    <style>
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        body {
+            background: #121214;
+            color: #e1e1e6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+        }
+        .container {
+            width: 100%;
+            max-width: 25rem;
+            text-align: center;
+            background: #1c1c1e;
+            padding: 0.5rem 2rem;
+            border-radius: 1.5rem;
+            box-shadow: 0 0.75rem 2.5rem rgba(0,0,0,0.6);
+        }
+        h1 {
+            font-size: 2.5rem;
+            margin: 1rem 0;
+            color: #ffffff;
+        }
+        .noise-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+            margin: 1.5rem 0;
+        }
+        button {
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 1rem;
+            border: none;
+            padding: 1rem;
+            border-radius: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-noise { background: #2a2a2e; }
+        .btn-noise[data-noise="white"] { color: #e1e1e6; }
+        .btn-noise[data-noise="pink"]  { color: #ff79c6; }
+        .btn-noise[data-noise="brown"] { color: #ffb86c; }
+        .btn-noise[data-noise="green"] { color: #50fa7b; }
+
+        .btn-noise.active {
+            transform: scale(0.95);
+            color: #121214;
+        }
+        /* Active indicator colors for specific noises */
+        .btn-noise.active[data-noise="white"] { background: #e1e1e6; box-shadow: 0 0 0.9375rem rgba(255,255,255,0.2); }
+        .btn-noise.active[data-noise="pink"] { background: #ff79c6; box-shadow: 0 0 0.9375rem rgba(255,121,198,0.3); }
+        .btn-noise.active[data-noise="brown"] { background: #ffb86c; box-shadow: 0 0 0.9375rem rgba(255,184,108,0.3); }
+        .btn-noise.active[data-noise="green"] { background: #50fa7b; box-shadow: 0 0 0.9375rem rgba(80,250,123,0.3); }
+
+        .control-group {
+            background: #26262b;
+            padding: 1.2rem;
+            border-radius: 1rem;
+            margin: 1.5rem 0;
+            text-align: left;
+        }
+        label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.85rem;
+            color: #a9a9b3;
+            margin-bottom: 0.625rem;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.03125rem;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            width: 100%;
+            height: 0.375rem;
+            background: #3a3a40;
+            border-radius: 0.1875rem;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 1.25rem;
+            height: 1.25rem;
+            border-radius: 50%;
+            background: #9a73ef;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        input[type="range"]::-webkit-slider-thumb:active {
+            transform: scale(1.2);
+        }
+        
+        .timer-row {
+            display: flex;
+            gap: 0.625rem;
+        }
+        .timer-input {
+            background: #3a3a40;
+            border: none;
+            color: white;
+            padding: 0.7rem;
+            border-radius: 0.625rem;
+            font-size: 1rem;
+            width: 6rem;
+            text-align: center;
+            font-weight: 600;
+        }
+        .btn-timer {
+            flex: 1;
+            background: #9a73ef;
+            color: white;
+            padding: 0.7rem;
+            border-radius: 0.625rem;
+            font-size: 0.95rem;
+        }
+        .btn-timer.active {
+            background: #6200ee;
+        }
+        
+        footer {
+            margin-top: 2rem;
+            font-size: 0.75rem;
+            color: #4c4c54;
+            line-height: 1.4;
+        }
+        footer a { color: #7c7c8a; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>csija</h1>
+    
+    <div class="noise-grid">
+        <button class="btn-noise" data-noise="white">White</button>
+        <button class="btn-noise" data-noise="pink">Pink</button>
+        <button class="btn-noise" data-noise="brown">Brown</button>
+        <button class="btn-noise" data-noise="green">Green</button>
+    </div>
+
+    <div class="control-group">
+        <label for="volume">Volume <span id="vol-txt">70%</span></label>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.70">
+    </div>
+
+    <div class="control-group">
+        <label><span id="timer-label">Fadeout Timer</span></label>
+        <div class="timer-row">
+            <input type="number" id="timer-mins" class="timer-input" min="1" max="240" value="30" list="timer-presets" inputmode="numeric" autocomplete="off">
+            <datalist id="timer-presets">
+                <option value="5"></option>
+                <option value="15"></option>
+                <option value="30"></option>
+                <option value="60"></option>
+                <option value="90"></option>
+                <option value="120"></option>
+            </datalist>
+            <button id="btn-timer" class="btn-timer">Start Timer</button>
+        </div>
+    </div>
+
+</div>
+
+<script>
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./sw.js')
+      .then((reg) => console.log('Service Worker registered!', reg))
+      .catch((err) => console.log('Registration failed:', err));
+  });
+}
+
+    let audioCtx = null;
+    let noiseSource = null;
+    let gainNode = null;
+    let currentNoiseType = null;
+    let timerTimeout = null;
+    let updateInterval = null;
+
+    const noiseButtons = document.querySelectorAll('.btn-noise');
+    const volumeSlider = document.getElementById('volume');
+    const volTxt = document.getElementById('vol-txt');
+    const timerInput = document.getElementById('timer-mins');
+    const timerButton = document.getElementById('btn-timer');
+    const timerLabel = document.getElementById('timer-label');
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioCtx.createGain();
+            gainNode.gain.setValueAtTime(volumeSlider.value, audioCtx.currentTime);
+            gainNode.connect(audioCtx.destination);
+            setupMediaSession();
+        }
+    }
+
+    // Mathematical Noise Buffers (2-second high-quality loops)
+    function createNoiseBuffer(type) {
+        const bufferSize = 8 * audioCtx.sampleRate;
+        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+        const data = buffer.getChannelData(0);
+
+        if (type === 'white') {
+            for (let i = 0; i < bufferSize; i++) {
+                data[i] = Math.random() * 2 - 1;
+            }
+        } else if (type === 'pink') {
+            // Paul Kellet's refined method for pure pink noise approximation
+            let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
+            for (let i = 0; i < bufferSize; i++) {
+                let white = Math.random() * 2 - 1;
+                b0 = 0.99886 * b0 + white * 0.0555179;
+                b1 = 0.99332 * b1 + white * 0.0750759;
+                b2 = 0.96900 * b2 + white * 0.1538520;
+                b3 = 0.86650 * b3 + white * 0.3104856;
+                b4 = 0.55000 * b4 + white * 0.5329522;
+                b5 = -0.7616 * b5 - white * 0.0168980;
+                data[i] = b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362;
+                data[i] *= 0.11; // Normalize
+                b6 = white * 0.115926;
+            }
+        } else if (type === 'brown') {
+            let lastOut = 0.0;
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                data[i] = (lastOut + (0.02 * white)) / 1.02;
+                lastOut = data[i];
+                data[i] *= 3.5; // Gain compensation
+            }
+        } else if (type === 'green') {
+            // Green noise is commonly modeled as brown noise passed through a high-pass filter.
+            const cutoffHz = 1000;
+            const dt = 1.0 / audioCtx.sampleRate;
+            const rc = 1.0 / (2.0 * Math.PI * cutoffHz);
+            const alpha = rc / (rc + dt);
+            let lastBrown = 0.0;
+            let lastOutput = 0.0;
+
+            for (let i = 0; i < bufferSize; i++) {
+                const white = Math.random() * 2 - 1;
+                const brown = (lastBrown + (0.02 * white)) / 1.02;
+                const filtered = alpha * (lastOutput + brown - lastBrown);
+                lastBrown = brown;
+                lastOutput = filtered;
+                data[i] = filtered * 1.6;
+            }
+
+            let peak = 0.0;
+            for (let i = 0; i < bufferSize; i++) {
+                peak = Math.max(peak, Math.abs(data[i]));
+            }
+            if (peak > 0) {
+                for (let i = 0; i < bufferSize; i++) {
+                    data[i] /= peak;
+                }
+            }
+        }
+        return buffer;
+    }
+
+    function playNoise(type) {
+        initAudio();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        stopNoise(false); // Clean previous nodes without clearing active visual states yet
+
+        noiseSource = audioCtx.createBufferSource();
+        noiseSource.buffer = createNoiseBuffer(type);
+        noiseSource.loop = true;
+        noiseSource.connect(gainNode);
+        noiseSource.start();
+        
+        currentNoiseType = type;
+        updateUI();
+
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+    }
+
+    function stopNoise(clearTimer = true) {
+        if (noiseSource) {
+            try { noiseSource.stop(); } catch(e){}
+            noiseSource.disconnect();
+            noiseSource = null;
+        }
+        
+        if (clearTimer) {
+            cancelFadeout();
+            currentNoiseType = null;
+            updateUI();
+        }
+
+        if ('mediaSession' in navigator && clearTimer) {
+            navigator.mediaSession.playbackState = "paused";
+        }
+    }
+
+    function updateUI() {
+        noiseButtons.forEach(btn => {
+            if (btn.getAttribute('data-noise') === currentNoiseType) {
+                btn.classList.add('active');
+            } else {
+                btn.classList.remove('active');
+            }
+        });
+    }
+
+    function startFadeout(minutes) {
+        initAudio();
+        if (!noiseSource) return;
+
+        cancelFadeout(); // Clear if running
+
+        const durationInSeconds = minutes * 60;
+        const startTime = audioCtx.currentTime;
+        const stopTime = startTime + durationInSeconds;
+        const initialVol = parseFloat(volumeSlider.value);
+
+        // Schedule Web Audio native ramp down
+        gainNode.gain.setValueAtTime(initialVol, startTime);
+        gainNode.gain.linearRampToValueAtTime(0, stopTime);
+
+        timerButton.textContent = "Cancel Timer";
+        timerButton.classList.add('active');
+        
+        let secondsLeft = durationInSeconds;
+        updateInterval = setInterval(() => {
+            secondsLeft--;
+            if (secondsLeft <= 0) {
+                clearInterval(updateInterval);
+            } else {
+                const m = Math.floor(secondsLeft / 60);
+                const s = secondsLeft % 60;
+                timerLabel.textContent = `Fadeout: ${m}m ${s}s remaining`;
+            }
+        }, 1000);
+
+        timerTimeout = setTimeout(() => {
+            stopNoise(true);
+            // Reset gain back safely to system volume level for future use
+            gainNode.gain.setValueAtTime(initialVol, audioCtx.currentTime);
+        }, durationInSeconds * 1000);
+    }
+
+    function cancelFadeout() {
+        if (timerTimeout) clearTimeout(timerTimeout);
+        if (updateInterval) clearInterval(updateInterval);
+        timerTimeout = null;
+        updateInterval = null;
+        
+        timerButton.textContent = "Start Timer";
+        timerButton.classList.remove('active');
+        timerLabel.textContent = "Fadeout Timer";
+        
+        if (gainNode && audioCtx) {
+            gainNode.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
+        }
+    }
+
+    function setupMediaSession() {
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: 'psss - Pure Noise',
+                artist: 'Privacy First Noise Engine',
+                album: 'Nursery Toolkit'
+            });
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (currentNoiseType) playNoise(currentNoiseType);
+                else playNoise('brown');
+            });
+            navigator.mediaSession.setActionHandler('pause', () => stopNoise(true));
+        }
+    }
+
+    // Event Triggers
+    noiseButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const noiseType = btn.getAttribute('data-noise');
+            if (currentNoiseType === noiseType && noiseSource) {
+                stopNoise(true);
+            } else {
+                playNoise(noiseType);
+            }
+        });
+    });
+
+    volumeSlider.addEventListener('input', (e) => {
+        const val = parseFloat(e.target.value);
+        volTxt.textContent = `${Math.round(val * 100)}%`;
+        if (gainNode && audioCtx && !timerTimeout) {
+            gainNode.gain.setTargetAtTime(val, audioCtx.currentTime, 0.01);
+        }
+    });
+
+    timerButton.addEventListener('click', () => {
+        if (timerTimeout) {
+            cancelFadeout();
+        } else {
+            const mins = parseFloat(timerInput.value);
+            if (mins > 0) startFadeout(mins);
+        }
+    });
+
+    // PWA Service Worker Registration
+    if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker.register('./sw.js').catch(err => console.log(err));
+        });
+    }
+</script>
+</body>
+</html>
