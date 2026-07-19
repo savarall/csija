@@ -268,11 +268,12 @@
         green: createNoiseBuffer('green')
     };
 
-    // Global action handlers registration (called once)
-    setupMediaSessionHandlers();
-
-    function playNoise(type) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+    async function playNoise(type) {
+        // Essential: ensure AudioContext timeline is active before calculating scheduling parameters
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+        
         cancelFadeout(); 
 
         const now = audioCtx.currentTime;
@@ -280,6 +281,7 @@
         const currentChannel = channels[activeChannelIdx];
         const nextChannel = channels[nextChannelIdx];
 
+        // 1. Crossfade out active channel
         if (currentChannel.source) {
             currentChannel.gainNode.gain.setValueAtTime(currentChannel.gainNode.gain.value, now);
             currentChannel.gainNode.gain.linearRampToValueAtTime(0, now + 1.0);
@@ -293,6 +295,7 @@
             currentChannel.type = null;
         }
 
+        // 2. Crossfade in new channel
         nextChannel.gainNode.gain.setValueAtTime(0, now);
         
         const src = audioCtx.createBufferSource();
@@ -303,17 +306,22 @@
         
         nextChannel.source = src;
         nextChannel.type = type;
-        nextChannel.gainNode.gain.linearRampToValueAtTime(1, now + 1.0);
+        nextChannel.gainNode.gain.linearRampToValueAtTime(1.0, now + 1.0);
 
         activeChannelIdx = nextChannelIdx;
         currentNoiseType = type;
         updateUI();
 
-        // Update MediaSession with specific dynamic strings on play
+        // Register action handlers and refresh text tags instantly upon user interaction
+        setupMediaSessionHandlers();
         updateMediaSessionMetadata(type);
     }
 
-    function stopNoise(clearTimer = true) {
+    async function stopNoise(clearTimer = true) {
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+
         const now = audioCtx.currentTime;
         const currentChannel = channels[activeChannelIdx];
 
@@ -340,7 +348,6 @@
             if (clearTimer) {
                 navigator.mediaSession.playbackState = "paused";
             } else if (currentNoiseType) {
-                // If transitioning to another sound, keep metadata mirroring the active target
                 updateMediaSessionMetadata(currentNoiseType);
             }
         }
@@ -356,8 +363,10 @@
         });
     }
 
-    function startFadeout(minutes) {
-        if (audioCtx.state === 'suspended') audioCtx.resume();
+    async function startFadeout(minutes) {
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
         if (!channels[activeChannelIdx].source) return;
 
         cancelFadeout();
@@ -406,19 +415,17 @@
         }
     }
 
-    // Handles changing string data fields dynamically
     function updateMediaSessionMetadata(type) {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: `${type.charAt(0).toUpperCase() + type.slice(1)} Noise`,
-                artist: 'Math.random',
+                artist: String(Math.random()),
                 album: 'Csija'
             });
             navigator.mediaSession.playbackState = "playing";
         }
     }
 
-    // Static event handlers setup
     function setupMediaSessionHandlers() {
         if ('mediaSession' in navigator) {
             navigator.mediaSession.setActionHandler('play', () => {
