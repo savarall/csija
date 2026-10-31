@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="Csija"/>
     <link rel="manifest" href="./site.webmanifest"/>
     <meta name="theme-color" content="#121214"/>
-    <meta name="description" content="A free, ad-free, open-source white noise generator for babies. Pure JavaScript, works completely offline, and respects your privacy.">
+    <meta name="description" content="Soothing white, pink, brown and green noise to help your baby fall asleep, with a gentle fadeout timer. Free, works offline, no ads or tracking.">
     <style>
         * {
             box-sizing: border-box;
@@ -134,6 +134,10 @@
         .btn-timer.active {
             background: #6200ee;
         }
+        .btn-timer:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -154,7 +158,7 @@
     </div>
 
     <div class="control-group">
-        <label><span id="timer-label">Fadeout Timer</span></label>
+        <label for="timer-mins"><span id="timer-label">Fadeout Timer</span></label>
         <div class="timer-row">
             <input type="number" id="timer-mins" class="timer-input" min="1" max="240" value="30" list="timer-presets" inputmode="numeric" autocomplete="off">
             <datalist id="timer-presets">
@@ -185,78 +189,115 @@
     const timerButton = document.getElementById('btn-timer');
     const timerLabel = document.getElementById('timer-label');
 
+    const FADE_SEC = 1.0;
+    const MAX_TIMER_MINS = 240;
+    const getVolume = () => parseFloat(volumeSlider.value);
+
     // Web Audio Setup
     const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    
+    if (navigator.audioSession) navigator.audioSession.type = 'playback';
+
     const masterGain = audioCtx.createGain();
-    masterGain.gain.setValueAtTime(volumeSlider.value, audioCtx.currentTime);
+    masterGain.gain.value = getVolume();
     masterGain.connect(audioCtx.destination);
 
-    let channels = [
-        { source: null, gainNode: audioCtx.createGain(), type: null },
-        { source: null, gainNode: audioCtx.createGain(), type: null }
-    ];
-    channels[0].gainNode.connect(masterGain);
-    channels[1].gainNode.connect(masterGain);
-    channels[0].gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
-    channels[1].gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    const channels = [0, 1].map(() => {
+        const gainNode = audioCtx.createGain();
+        gainNode.gain.value = 0;
+        gainNode.connect(masterGain);
+        return { gainNode, source: null, fadingSource: null };
+    });
 
-    let activeChannelIdx = 0; 
+    let activeChannelIdx = 0;
     let currentNoiseType = null;
-    let timerTimeout = null;
-    let updateInterval = null;
+    let lastNoiseType = 'brown';
+    let timer = null;
+    let suspendTimeout = null;
 
-    // Mathematical Noise Buffers
-    function createNoiseBuffer(type) {
-        const bufferSize = 8 * audioCtx.sampleRate;
-        const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-        const data = buffer.getChannelData(0);
+    // Browsers only expose lock-screen / notification media controls for an
+    // HTML media element, so a looping silent clip owns the media session.
+    function createSilentWavUrl(seconds) {
+        const rate = 8000;
+        const samples = rate * seconds;
+        const buf = new ArrayBuffer(44 + samples);
+        const v = new DataView(buf);
+        const str = (o, s) => { for (let i = 0; i < s.length; i++) v.setUint8(o + i, s.charCodeAt(i)); };
+        str(0, 'RIFF'); v.setUint32(4, 36 + samples, true); str(8, 'WAVE');
+        str(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
+        v.setUint32(24, rate, true); v.setUint32(28, rate, true); v.setUint16(32, 1, true); v.setUint16(34, 8, true);
+        str(36, 'data'); v.setUint32(40, samples, true);
+        new Uint8Array(buf, 44).fill(128);
+        return URL.createObjectURL(new Blob([buf], { type: 'audio/wav' }));
+    }
 
+    const keepAlive = new Audio(createSilentWavUrl(10));
+    keepAlive.loop = true;
+    // Paused by the OS (call, other app, headphones unplugged).
+    keepAlive.addEventListener('pause', () => { if (currentNoiseType) stopNoise(); });
+
+    // Mathematical Noise Generators
+    function createGenerator(type) {
         if (type === 'white') {
-            for (let i = 0; i < bufferSize; i++) data[i] = Math.random() * 2 - 1;
-        } else if (type === 'pink') {
+            return () => Math.random() * 2 - 1;
+        }
+        if (type === 'pink') {
             let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
-            for (let i = 0; i < bufferSize; i++) {
-                let white = Math.random() * 2 - 1;
+            return () => {
+                const white = Math.random() * 2 - 1;
                 b0 = 0.99886 * b0 + white * 0.0555179;
                 b1 = 0.99332 * b1 + white * 0.0750759;
                 b2 = 0.96900 * b2 + white * 0.1538520;
                 b3 = 0.86650 * b3 + white * 0.3104856;
                 b4 = 0.55000 * b4 + white * 0.5329522;
                 b5 = -0.7616 * b5 - white * 0.0168980;
-                data[i] = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
+                const out = (b0 + b1 + b2 + b3 + b4 + b5 + b6 + white * 0.5362) * 0.11;
                 b6 = white * 0.115926;
-            }
-        } else if (type === 'brown') {
+                return out;
+            };
+        }
+        if (type === 'brown') {
             let lastOut = 0.0;
-            for (let i = 0; i < bufferSize; i++) {
-                const white = Math.random() * 2 - 1;
-                data[i] = (lastOut + (0.02 * white)) / 1.02;
-                lastOut = data[i];
-                data[i] *= 3.5;
-            }
-        } else if (type === 'green') {
-            const cutoffHz = 1000;
-            const dt = 1.0 / audioCtx.sampleRate;
-            const rc = 1.0 / (2.0 * Math.PI * cutoffHz);
-            const alpha = rc / (rc + dt);
-            let lastBrown = 0.0;
-            let lastOutput = 0.0;
+            return () => {
+                lastOut = (lastOut + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+                return lastOut * 3.5;
+            };
+        }
+        // green
+        const cutoffHz = 1000;
+        const dt = 1.0 / audioCtx.sampleRate;
+        const rc = 1.0 / (2.0 * Math.PI * cutoffHz);
+        const alpha = rc / (rc + dt);
+        let lastBrown = 0.0;
+        let lastOutput = 0.0;
+        return () => {
+            const brown = (lastBrown + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+            lastOutput = alpha * (lastOutput + brown - lastBrown);
+            lastBrown = brown;
+            return lastOutput;
+        };
+    }
 
-            for (let i = 0; i < bufferSize; i++) {
-                const white = Math.random() * 2 - 1;
-                const brown = (lastBrown + (0.02 * white)) / 1.02;
-                const filtered = alpha * (lastOutput + brown - lastBrown);
-                lastBrown = brown;
-                lastOutput = filtered;
-                data[i] = filtered * 1.6;
-            }
+    function createNoiseBuffer(type) {
+        const rate = audioCtx.sampleRate;
+        const length = 8 * rate;
+        const fadeLen = Math.floor(0.5 * rate);
+        const next = createGenerator(type);
+        const raw = new Float32Array(length + fadeLen);
+        for (let i = 0; i < raw.length; i++) raw[i] = next();
 
+        const buffer = audioCtx.createBuffer(1, length, rate);
+        const data = buffer.getChannelData(0);
+        data.set(raw.subarray(0, length));
+        // Crossfade the overrun into the head so the loop point doesn't click.
+        for (let i = 0; i < fadeLen; i++) {
+            const t = (i / fadeLen) * Math.PI / 2;
+            data[i] = raw[i] * Math.sin(t) + raw[length + i] * Math.cos(t);
+        }
+
+        if (type === 'green') {
             let peak = 0.0;
-            for (let i = 0; i < bufferSize; i++) peak = Math.max(peak, Math.abs(data[i]));
-            if (peak > 0) {
-                for (let i = 0; i < bufferSize; i++) data[i] /= peak;
-            }
+            for (let i = 0; i < length; i++) peak = Math.max(peak, Math.abs(data[i]));
+            if (peak > 0) for (let i = 0; i < length; i++) data[i] /= peak;
         }
         return buffer;
     }
@@ -268,202 +309,218 @@
         green: createNoiseBuffer('green')
     };
 
+    // Freeze a param at its current value so new automation starts from there.
+    function holdParam(param, now) {
+        const value = param.value;
+        if (param.cancelAndHoldAtTime) {
+            param.cancelAndHoldAtTime(now);
+        } else {
+            param.cancelScheduledValues(now);
+        }
+        // Without an explicit anchor, a following ramp starts from the last (already finished) event.
+        param.setValueAtTime(value, now);
+    }
+
+    function rampTo(param, value, now) {
+        holdParam(param, now);
+        param.linearRampToValueAtTime(value, now + FADE_SEC);
+    }
+
+    function releaseChannel(channel, now) {
+        if (!channel.source) return;
+        rampTo(channel.gainNode.gain, 0, now);
+        channel.source.stop(now + FADE_SEC);
+        channel.fadingSource = channel.source;
+        channel.source = null;
+    }
+
+    function killFadingSource(channel) {
+        if (!channel.fadingSource) return;
+        try { channel.fadingSource.stop(); } catch (e) {}
+        channel.fadingSource.disconnect();
+        channel.fadingSource = null;
+    }
+
     async function playNoise(type) {
-        // Essential: ensure AudioContext timeline is active before calculating scheduling parameters
-        if (audioCtx.state === 'suspended') {
+        clearTimeout(suspendTimeout);
+        // Must run synchronously inside the user gesture.
+        startMediaSession(type);
+        if (audioCtx.state !== 'running') {
             await audioCtx.resume();
         }
-        
-        cancelFadeout(); 
 
         const now = audioCtx.currentTime;
-        const nextChannelIdx = 1 - activeChannelIdx;
-        const currentChannel = channels[activeChannelIdx];
-        const nextChannel = channels[nextChannelIdx];
+        releaseChannel(channels[activeChannelIdx], now);
 
-        // 1. Crossfade out active channel
-        if (currentChannel.source) {
-            currentChannel.gainNode.gain.setValueAtTime(currentChannel.gainNode.gain.value, now);
-            currentChannel.gainNode.gain.linearRampToValueAtTime(0, now + 1.0);
-            
-            const oldSource = currentChannel.source;
-            setTimeout(() => {
-                try { oldSource.stop(); } catch(e){}
-                oldSource.disconnect();
-            }, 1100);
-            currentChannel.source = null;
-            currentChannel.type = null;
-        }
+        activeChannelIdx = 1 - activeChannelIdx;
+        const channel = channels[activeChannelIdx];
+        // A previous crossfade may still be fading out on this channel.
+        killFadingSource(channel);
 
-        // 2. Crossfade in new channel
-        nextChannel.gainNode.gain.setValueAtTime(0, now);
-        
         const src = audioCtx.createBufferSource();
         src.buffer = noiseBuffers[type];
         src.loop = true;
-        src.connect(nextChannel.gainNode);
+        src.connect(channel.gainNode);
+        src.onended = () => src.disconnect();
         src.start(now);
-        
-        nextChannel.source = src;
-        nextChannel.type = type;
-        nextChannel.gainNode.gain.linearRampToValueAtTime(1.0, now + 1.0);
+        channel.source = src;
 
-        activeChannelIdx = nextChannelIdx;
+        channel.gainNode.gain.cancelScheduledValues(now);
+        channel.gainNode.gain.setValueAtTime(0, now);
+        channel.gainNode.gain.linearRampToValueAtTime(1.0, now + FADE_SEC);
+
         currentNoiseType = type;
+        lastNoiseType = type;
         updateUI();
-
-        // Register action handlers and refresh text tags instantly upon user interaction
-        setupMediaSessionHandlers();
-        updateMediaSessionMetadata(type);
     }
 
-    async function stopNoise(clearTimer = true) {
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
-        }
-
+    function stopNoise() {
+        if (!currentNoiseType) return;
         const now = audioCtx.currentTime;
-        const currentChannel = channels[activeChannelIdx];
+        releaseChannel(channels[activeChannelIdx], now);
 
-        if (currentChannel.source) {
-            currentChannel.gainNode.gain.setValueAtTime(currentChannel.gainNode.gain.value, now);
-            currentChannel.gainNode.gain.linearRampToValueAtTime(0, now + 1.0);
-            
-            const oldSource = currentChannel.source;
-            setTimeout(() => {
-                try { oldSource.stop(); } catch(e){}
-                oldSource.disconnect();
-            }, 1100);
-            currentChannel.source = null;
-            currentChannel.type = null;
-        }
+        clearTimer();
+        // Restore the volume only once the channel has faded to silence.
+        holdParam(masterGain.gain, now);
+        masterGain.gain.setValueAtTime(getVolume(), now + FADE_SEC);
 
-        if (clearTimer) {
-            cancelFadeout();
-            currentNoiseType = null;
-            updateUI();
-        }
+        currentNoiseType = null;
+        updateUI();
+        stopMediaSession();
 
-        if ('mediaSession' in navigator) {
-            if (clearTimer) {
-                navigator.mediaSession.playbackState = "paused";
-            } else if (currentNoiseType) {
-                updateMediaSessionMetadata(currentNoiseType);
-            }
-        }
+        // Release the audio hardware while idle (saves battery overnight).
+        suspendTimeout = setTimeout(() => {
+            if (!currentNoiseType) audioCtx.suspend();
+        }, (FADE_SEC + 0.5) * 1000);
     }
 
     function updateUI() {
         noiseButtons.forEach(btn => {
-            if (btn.getAttribute('data-noise') === currentNoiseType) {
-                btn.classList.add('active');
-            } else {
-                btn.classList.remove('active');
-            }
+            btn.classList.toggle('active', btn.dataset.noise === currentNoiseType);
         });
+        timerButton.disabled = !currentNoiseType;
+        timerButton.textContent = timer ? 'Cancel Timer' : 'Start Timer';
+        timerButton.classList.toggle('active', !!timer);
     }
 
-    async function startFadeout(minutes) {
-        if (audioCtx.state === 'suspended') {
-            await audioCtx.resume();
-        }
-        if (!channels[activeChannelIdx].source) return;
+    // Ramp the master gain from the slider volume (scaled to the time left) down to 0.
+    function scheduleFadeRamp(volume) {
+        const now = audioCtx.currentTime;
+        const remaining = Math.max(0, timer.endTime - now);
+        const g = masterGain.gain;
+        g.cancelScheduledValues(now);
+        g.setValueAtTime(volume * remaining / timer.duration, now);
+        g.linearRampToValueAtTime(0, timer.endTime);
+    }
 
-        cancelFadeout();
+    function updateTimerLabel() {
+        const left = Math.max(0, Math.ceil((timer.endMs - Date.now()) / 1000));
+        const s = String(left % 60).padStart(2, '0');
+        timerLabel.textContent = `Fadeout: ${Math.floor(left / 60)}m ${s}s remaining`;
+    }
 
-        const durationInSeconds = minutes * 60;
-        const startTime = audioCtx.currentTime;
-        const stopTime = startTime + durationInSeconds;
-        const initialVol = parseFloat(volumeSlider.value);
+    function startFadeout(minutes) {
+        if (!currentNoiseType) return;
+        clearTimer();
 
-        masterGain.gain.setValueAtTime(initialVol, startTime);
-        masterGain.gain.linearRampToValueAtTime(0, stopTime);
+        const duration = minutes * 60;
+        const now = audioCtx.currentTime;
+        timer = {
+            duration,
+            endTime: now + duration,
+            endMs: Date.now() + duration * 1000,
+            timeout: setTimeout(stopNoise, duration * 1000),
+            interval: setInterval(updateTimerLabel, 1000)
+        };
+        scheduleFadeRamp(getVolume());
+        updateTimerLabel();
+        updateUI();
+    }
 
-        timerButton.textContent = "Cancel Timer";
-        timerButton.classList.add('active');
-        
-        let secondsLeft = durationInSeconds;
-        updateInterval = setInterval(() => {
-            secondsLeft--;
-            if (secondsLeft <= 0) {
-                clearInterval(updateInterval);
-            } else {
-                const m = Math.floor(secondsLeft / 60);
-                const s = secondsLeft % 60;
-                timerLabel.textContent = `Fadeout: ${m}m ${s}s remaining`;
-            }
-        }, 1000);
-
-        timerTimeout = setTimeout(() => {
-            stopNoise(true);
-            masterGain.gain.setValueAtTime(initialVol, audioCtx.currentTime);
-        }, durationInSeconds * 1000);
+    function clearTimer() {
+        if (!timer) return;
+        clearTimeout(timer.timeout);
+        clearInterval(timer.interval);
+        timer = null;
+        timerLabel.textContent = 'Fadeout Timer';
     }
 
     function cancelFadeout() {
-        if (timerTimeout) clearTimeout(timerTimeout);
-        if (updateInterval) clearInterval(updateInterval);
-        timerTimeout = null;
-        updateInterval = null;
-        
-        timerButton.textContent = "Start Timer";
-        timerButton.classList.remove('active');
-        timerLabel.textContent = "Fadeout Timer";
-        
-        if (masterGain && audioCtx) {
-            masterGain.gain.setValueAtTime(parseFloat(volumeSlider.value), audioCtx.currentTime);
-        }
+        clearTimer();
+        rampTo(masterGain.gain, getVolume(), audioCtx.currentTime);
+        updateUI();
     }
 
-    function updateMediaSessionMetadata(type) {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.metadata = new MediaMetadata({
-                title: `${type.charAt(0).toUpperCase() + type.slice(1)} Noise`,
-                artist: String(Math.random()),
-                album: 'Csija'
-            });
-            navigator.mediaSession.playbackState = "playing";
-        }
+    function startMediaSession(type) {
+        keepAlive.play().catch(() => {});
+        if (!('mediaSession' in navigator)) return;
+        navigator.mediaSession.metadata = new MediaMetadata({
+            title: `${type.charAt(0).toUpperCase() + type.slice(1)} Noise`,
+            artist: 'Csija',
+            album: 'Csija',
+            artwork: [{ src: './icon-512.png', sizes: '512x512', type: 'image/png' }]
+        });
+        navigator.mediaSession.playbackState = 'playing';
     }
 
-    function setupMediaSessionHandlers() {
-        if ('mediaSession' in navigator) {
-            navigator.mediaSession.setActionHandler('play', () => {
-                if (currentNoiseType) playNoise(currentNoiseType);
-                else playNoise('brown');
-            });
-            navigator.mediaSession.setActionHandler('pause', () => stopNoise(true));
+    function stopMediaSession() {
+        keepAlive.pause();
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+    }
+
+    if ('mediaSession' in navigator) {
+        const noiseTypes = Array.from(noiseButtons, btn => btn.dataset.noise);
+        const cycleNoise = (step) => {
+            const i = noiseTypes.indexOf(currentNoiseType || lastNoiseType);
+            playNoise(noiseTypes[(i + step + noiseTypes.length) % noiseTypes.length]);
+        };
+        const handlers = {
+            play: () => playNoise(lastNoiseType),
+            pause: () => stopNoise(),
+            stop: () => stopNoise(),
+            nexttrack: () => cycleNoise(1),
+            previoustrack: () => cycleNoise(-1)
+        };
+        for (const [action, handler] of Object.entries(handlers)) {
+            try { navigator.mediaSession.setActionHandler(action, handler); } catch (e) {}
         }
     }
 
     // Event Triggers
     noiseButtons.forEach(btn => {
         btn.addEventListener('click', () => {
-            const noiseType = btn.getAttribute('data-noise');
-            if (currentNoiseType === noiseType && channels[activeChannelIdx].source) {
-                stopNoise(true);
+            const noiseType = btn.dataset.noise;
+            if (currentNoiseType === noiseType) {
+                stopNoise();
             } else {
                 playNoise(noiseType);
             }
         });
     });
 
-    volumeSlider.addEventListener('input', (e) => {
-        const val = parseFloat(e.target.value);
+    volumeSlider.addEventListener('input', () => {
+        const val = getVolume();
         volTxt.textContent = `${Math.round(val * 100)}%`;
-        if (masterGain && audioCtx && !timerTimeout) {
+        if (timer) {
+            scheduleFadeRamp(val);
+        } else {
+            holdParam(masterGain.gain, audioCtx.currentTime);
             masterGain.gain.setTargetAtTime(val, audioCtx.currentTime, 0.01);
         }
     });
 
     timerButton.addEventListener('click', () => {
-        if (timerTimeout) {
+        if (timer) {
             cancelFadeout();
-        } else {
-            const mins = parseFloat(timerInput.value);
-            if (mins > 0) startFadeout(mins);
+            return;
         }
+        const mins = Math.min(parseFloat(timerInput.value), MAX_TIMER_MINS);
+        if (!(mins > 0)) return;
+        timerInput.value = mins;
+        startFadeout(mins);
     });
+
+    updateUI();
 </script>
 </body>
 </html>
