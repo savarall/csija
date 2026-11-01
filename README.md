@@ -8,14 +8,14 @@ It's also a vibe-coded app: built mostly by chatting with an AI assistant rather
 
 ## How to use it
 
-1. **Pick a sound.** Tap one of the four noises:
+1. **Pick a sound.** Tap one of the four buttons; each noise has its own colour and bar pattern (tall bars on the left mean a deeper sound):
    - **White**: even, bright hiss, like a fan or radio static
    - **Pink**: softer and warmer, like steady rain
    - **Brown**: deep and rumbly, like a waterfall or the inside of an airplane
    - **Green**: calm, mid-range noise, like wind or distant waves
 2. **Switch anytime.** Tap another sound and it gently crossfades. Tap the playing sound again to stop it.
 3. **Set the volume** with the slider.
-4. **Use the fadeout timer (optional).** Enter how many minutes you want (up to 240) and tap **Start Timer**. The sound slowly fades out over that time, so there's no sudden silence to wake anyone up. Tap **Cancel Timer** to keep it playing.
+4. **Use the fadeout timer (optional).** While a sound is playing, tap **15**, **30**, **60** or **90** minutes. The sound slowly fades out over that time, so there's no sudden silence to wake anyone up. Tap the selected time again, or **∞**, to keep it playing.
 
 You can also pause and resume from your phone's lock screen or notification controls, so you don't need to unlock your phone in a dark room.
 

@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Csija – icon ideas</title>
+    <!-- Not part of the app: alternative noise-button icons kept for later refinement. Open directly in a browser. -->
+    <style>
+        body {
+            background: #121214;
+            color: #a9a9b3;
+            font: 14px system-ui, sans-serif;
+            max-width: 25rem;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+        h2 { font-size: 1rem; color: #e1e1e6; margin: 2rem 0 0.25rem; }
+        p { margin: 0 0 0.75rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.75rem;
+        }
+        .tile {
+            background: #2a2a2e;
+            border-radius: 0.875rem;
+            padding: 0.6rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 4rem;
+        }
+        .tile.active { color: #121214 !important; }
+        .tile.active.white { background: #e1e1e6; }
+        .tile.active.pink { background: #ff79c6; }
+        .tile.active.brown { background: #ffb86c; }
+        .tile.active.green { background: #50fa7b; }
+        .white { color: #e1e1e6; }
+        .pink { color: #ff79c6; }
+        .brown { color: #ffb86c; }
+        .green { color: #50fa7b; }
+        svg { width: 3rem; height: 3rem; }
+        .glyph { font-size: 2rem; line-height: 3rem; }
+    </style>
+</head>
+<body>
+
+<h2>Blobs: spiky → smooth</h2>
+<p>White = ragged starburst, pink = softer lopsided star, brown = smooth pebble, green = lumpy flower.
+   To do: tune sizes so all four look equally heavy, and make the spikes look less mechanical.</p>
+<div class="grid" id="blobs"></div>
+
+<h2>Unicode symbols</h2>
+<p>Radio = white, rain = pink, plane = brown, fern = green.
+   Caveats: how they look depends on the device's fonts, and some may show as empty boxes.
+   <code>U+FE0E</code> keeps the plane as a plain symbol, but most phones ignore it for 📻 and show the colour emoji.</p>
+<div class="grid">
+    <div class="tile white"><span class="glyph">&#x1F4FB;&#xFE0E;</span></div>
+    <div class="tile pink"><span class="glyph">&#x26C6;</span></div>
+    <div class="tile brown active"><span class="glyph">&#x2708;&#xFE0E;</span></div>
+    <div class="tile green"><span class="glyph">&#x2E19;</span></div>
+</div>
+
+<h2>Unicode, with a drawn radio</h2>
+<p>Same as above, but the radio is a small inline SVG so it looks the same on every device.</p>
+<div class="grid">
+    <div class="tile white">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="9" width="18" height="12" rx="2"/><path d="M7 9l10-5"/><circle cx="9" cy="15" r="2.5"/><path d="M15 13.5h3M15 16.5h3"/>
+        </svg>
+    </div>
+    <div class="tile pink"><span class="glyph">&#x26C6;</span></div>
+    <div class="tile brown active"><span class="glyph">&#x2708;&#xFE0E;</span></div>
+    <div class="tile green"><span class="glyph">&#x2E19;</span></div>
+</div>
+
+<script>
+    // Deterministic pseudo-random in [0, 1) so the blobs look irregular but never change.
+    const hash = (i) => { const s = Math.sin(i * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+
+    // Radius = wobbly base + k lobes shaped by `profile`, each lobe with a random height.
+    function blobPath(seed, k, base, amp, profile, jitter, wobble) {
+        const p1 = hash(seed) * 2 * Math.PI, p2 = hash(seed + 1) * 2 * Math.PI;
+        const pts = [];
+        for (let i = 0; i < 360; i++) {
+            const t = i / 360 * 2 * Math.PI;
+            const u = t / (2 * Math.PI) * k, lobe = Math.floor(u), f = u - lobe;
+            const a = amp * (1 - jitter + jitter * hash(seed * 10 + lobe));
+            const r = base * (1 + wobble * (0.6 * Math.sin(2 * t + p1) + 0.4 * Math.sin(3 * t + p2))) + a * profile(f);
+            pts.push(`${i ? 'L' : 'M'}${(12 + r * Math.cos(t)).toFixed(2)} ${(12 + r * Math.sin(t)).toFixed(2)}`);
+        }
+        return pts.join('') + 'Z';
+    }
+
+    const spike = (sharpness) => (f) => Math.pow(1 - Math.abs(2 * f - 1), sharpness);
+    const round = (f) => Math.sin(Math.PI * f);
+
+    const blobs = {
+        white: blobPath(3, 17, 5.2, 5.6, spike(3.2), 0.6, 0.10),
+        pink:  blobPath(7, 9, 6.6, 3.6, spike(1.5), 0.5, 0.10),
+        brown: blobPath(11, 1, 8.6, 0, round, 0, 0.14),
+        green: blobPath(5, 5, 6.6, 3.2, (f) => Math.pow(round(f), 0.6), 0.35, 0.08)
+    };
+
+    document.getElementById('blobs').innerHTML = Object.entries(blobs).map(([name, d]) =>
+        `<div class="tile ${name}${name === 'brown' ? ' active' : ''}"><svg viewBox="0 0 24 24"><path d="${d}" fill="currentColor"/></svg></div>`
+    ).join('');
+</script>
+</body>
+</html>

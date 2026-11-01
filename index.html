@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Csija</title>
     <link rel="icon" href="./icon-512.png" type="image/png"/>
     <link rel="apple-touch-icon" href="./icon-512.png"/>
@@ -16,6 +16,7 @@
             -webkit-tap-highlight-color: transparent;
         }
         body {
+            font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
             background: #121214;
             color: #e1e1e6;
             display: flex;
@@ -23,7 +24,9 @@
             align-items: center;
             justify-content: center;
             min-height: 100vh;
+            min-height: 100dvh;
             margin: 0;
+            padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
         }
         .container {
             width: 100%;
@@ -54,21 +57,38 @@
             border-radius: 0.875rem;
             cursor: pointer;
             transition: all 0.2s ease;
+            touch-action: manipulation;
         }
-        .btn-noise { background: #2a2a2e; }
-        .btn-noise[data-noise="white"] { color: #e1e1e6; }
-        .btn-noise[data-noise="pink"]  { color: #ff79c6; }
-        .btn-noise[data-noise="brown"] { color: #ffb86c; }
-        .btn-noise[data-noise="green"] { color: #50fa7b; }
+        :focus-visible {
+            outline: 2px solid #9a73ef;
+            outline-offset: 2px;
+        }
+        .btn-noise {
+            background: #2a2a2e;
+            color: var(--noise-color);
+            padding: 0.6rem;
+        }
+        .btn-noise svg {
+            display: block;
+            margin: auto;
+            width: 3rem;
+            height: 3rem;
+            fill: none;
+            stroke: currentColor;
+            stroke-width: 2.2;
+            stroke-linecap: round;
+        }
+        [data-noise="white"] { --noise-color: #e1e1e6; --noise-glow: rgba(255,255,255,0.2); }
+        [data-noise="pink"]  { --noise-color: #ff79c6; --noise-glow: rgba(255,121,198,0.3); }
+        [data-noise="brown"] { --noise-color: #ffb86c; --noise-glow: rgba(255,184,108,0.3); }
+        [data-noise="green"] { --noise-color: #50fa7b; --noise-glow: rgba(80,250,123,0.3); }
 
         .btn-noise.active {
             transform: scale(0.95);
             color: #121214;
+            background: var(--noise-color);
+            box-shadow: 0 0 0.9375rem var(--noise-glow);
         }
-        .btn-noise.active[data-noise="white"] { background: #e1e1e6; box-shadow: 0 0 0.9375rem rgba(255,255,255,0.2); }
-        .btn-noise.active[data-noise="pink"] { background: #ff79c6; box-shadow: 0 0 0.9375rem rgba(255,121,198,0.3); }
-        .btn-noise.active[data-noise="brown"] { background: #ffb86c; box-shadow: 0 0 0.9375rem rgba(255,184,108,0.3); }
-        .btn-noise.active[data-noise="green"] { background: #50fa7b; box-shadow: 0 0 0.9375rem rgba(80,250,123,0.3); }
 
         .control-group {
             background: #26262b;
@@ -77,23 +97,38 @@
             margin: 1.5rem 0;
             text-align: left;
         }
-        label {
+        .row {
             display: flex;
-            justify-content: space-between;
-            font-size: 0.85rem;
-            color: #a9a9b3;
-            margin-bottom: 0.625rem;
-            font-weight: 500;
-            text-transform: uppercase;
-            letter-spacing: 0.03125rem;
+            align-items: center;
+            gap: 0.75rem;
         }
+        .icon {
+            flex: none;
+            font-size: 1.25rem;
+            line-height: 1;
+            color: #a9a9b3;
+        }
+        /* U+1F568/U+1F56A are "right speaker" glyphs that face left. */
+        .icon.speaker { transform: scaleX(-1); }
         input[type="range"] {
             -webkit-appearance: none;
-            width: 100%;
+            flex: 1;
+            min-width: 0;
+            margin: 0;
             height: 0.375rem;
-            background: #3a3a40;
+            background: linear-gradient(to right, #9a73ef var(--p, 70%), #3a3a40 0);
             border-radius: 0.1875rem;
-            outline: none;
+        }
+        input[type="range"]::-moz-range-track {
+            background: transparent;
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 1.25rem;
+            height: 1.25rem;
+            border: none;
+            border-radius: 50%;
+            background: #9a73ef;
+            cursor: pointer;
         }
         input[type="range"]::-webkit-slider-thumb {
             -webkit-appearance: none;
@@ -108,35 +143,56 @@
             transform: scale(1.2);
         }
         
-        .timer-row {
-            display: flex;
-            gap: 0.625rem;
-        }
-        .timer-input {
-            background: #3a3a40;
-            border: none;
-            color: white;
-            padding: 0.7rem;
-            border-radius: 0.625rem;
-            font-size: 1rem;
-            width: 6rem;
-            text-align: center;
-            font-weight: 600;
-        }
-        .btn-timer {
+        .preset-row {
             flex: 1;
-            background: #9a73ef;
-            color: white;
-            padding: 0.7rem;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 0.5rem;
+        }
+        .btn-preset {
+            background: #3a3a40;
+            color: #e1e1e6;
+            padding: 0.7rem 0;
             border-radius: 0.625rem;
             font-size: 0.95rem;
         }
-        .btn-timer.active {
-            background: #6200ee;
+        .btn-preset.active {
+            background: #9a73ef;
+            color: white;
         }
-        .btn-timer:disabled {
+        .btn-preset:disabled {
             opacity: 0.5;
             cursor: not-allowed;
+        }
+        .timer-status {
+            margin-top: 0.875rem;
+        }
+        .timer-track {
+            flex: 1;
+            height: 0.25rem;
+            border-radius: 0.125rem;
+            background: #3a3a40;
+            overflow: hidden;
+        }
+        #timer-bar {
+            height: 100%;
+            background: #9a73ef;
+            transform-origin: left;
+            transition: transform 1s linear;
+        }
+        #timer-countdown {
+            font-size: 0.9rem;
+            font-variant-numeric: tabular-nums;
+            color: #a9a9b3;
+        }
+
+        @media (max-width: 26rem) {
+            body { background: #1c1c1e; }
+            .container {
+                border-radius: 0;
+                box-shadow: none;
+                padding: 0.5rem 1.25rem;
+            }
         }
     </style>
 </head>
@@ -146,30 +202,30 @@
     <h1>csija</h1>
     
     <div class="noise-grid">
-        <button class="btn-noise" data-noise="white">White</button>
-        <button class="btn-noise" data-noise="pink">Pink</button>
-        <button class="btn-noise" data-noise="brown">Brown</button>
-        <button class="btn-noise" data-noise="green">Green</button>
+        <!-- Bar heights sketch each noise's spectrum: low pitch on the left, high on the right. -->
+        <button class="btn-noise" data-noise="white" aria-label="White noise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V8M6.6 20V8M10.2 20V8M13.8 20V8M17.4 20V8M21 20V8"/></svg></button>
+        <button class="btn-noise" data-noise="pink" aria-label="Pink noise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V4M6.6 20V6.4M10.2 20V8.5M13.8 20V10.4M17.4 20V12M21 20V13.3"/></svg></button>
+        <button class="btn-noise" data-noise="brown" aria-label="Brown noise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V4M6.6 20V9.6M10.2 20V13.6M13.8 20V16M17.4 20V17.3M21 20V18.1"/></svg></button>
+        <button class="btn-noise" data-noise="green" aria-label="Green noise"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 20V15.2M6.6 20V10.4M10.2 20V4.8M13.8 20V4.8M17.4 20V10.4M21 20V15.2"/></svg></button>
+    </div>
+
+    <div class="control-group row">
+        <span class="icon speaker" aria-hidden="true">&#x1F568;&#xFE0E;</span>
+        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.70" autocomplete="off" aria-label="Volume">
+        <span class="icon speaker" aria-hidden="true">&#x1F56A;&#xFE0E;</span>
     </div>
 
     <div class="control-group">
-        <label for="volume">Volume <span id="vol-txt">70%</span></label>
-        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.70">
-    </div>
-
-    <div class="control-group">
-        <label for="timer-mins"><span id="timer-label">Fadeout Timer</span></label>
-        <div class="timer-row">
-            <input type="number" id="timer-mins" class="timer-input" min="1" max="240" value="30" list="timer-presets" inputmode="numeric" autocomplete="off">
-            <datalist id="timer-presets">
-                <option value="5"></option>
-                <option value="15"></option>
-                <option value="30"></option>
-                <option value="60"></option>
-                <option value="90"></option>
-                <option value="120"></option>
-            </datalist>
-            <button id="btn-timer" class="btn-timer">Start Timer</button>
+        <div class="preset-row" role="group" aria-label="Fadeout timer">
+            <button class="btn-preset" data-mins="15" aria-label="15 minutes">15&prime;</button>
+            <button class="btn-preset" data-mins="30" aria-label="30 minutes">30&prime;</button>
+            <button class="btn-preset" data-mins="60" aria-label="60 minutes">60&prime;</button>
+            <button class="btn-preset" data-mins="90" aria-label="90 minutes">90&prime;</button>
+            <button class="btn-preset" data-mins="0" aria-label="No timer">&infin;</button>
+        </div>
+        <div class="row timer-status" role="timer">
+            <div class="timer-track"><div id="timer-bar" style="transform: scaleX(0)"></div></div>
+            <span id="timer-countdown">00:00</span>
         </div>
     </div>
 
@@ -183,14 +239,13 @@
     }
 
     const noiseButtons = document.querySelectorAll('.btn-noise');
+    const noiseTypes = Array.from(noiseButtons, btn => btn.dataset.noise);
     const volumeSlider = document.getElementById('volume');
-    const volTxt = document.getElementById('vol-txt');
-    const timerInput = document.getElementById('timer-mins');
-    const timerButton = document.getElementById('btn-timer');
-    const timerLabel = document.getElementById('timer-label');
+    const presetButtons = document.querySelectorAll('.btn-preset');
+    const timerBar = document.getElementById('timer-bar');
+    const timerCountdown = document.getElementById('timer-countdown');
 
     const FADE_SEC = 1.0;
-    const MAX_TIMER_MINS = 240;
     const getVolume = () => parseFloat(volumeSlider.value);
 
     // Web Audio Setup
@@ -237,13 +292,12 @@
 
     // Mathematical Noise Generators
     function createGenerator(type) {
-        if (type === 'white') {
-            return () => Math.random() * 2 - 1;
-        }
+        const nextWhite = () => Math.random() * 2 - 1;
+        if (type === 'white') return nextWhite;
         if (type === 'pink') {
             let b0=0, b1=0, b2=0, b3=0, b4=0, b5=0, b6=0;
             return () => {
-                const white = Math.random() * 2 - 1;
+                const white = nextWhite();
                 b0 = 0.99886 * b0 + white * 0.0555179;
                 b1 = 0.99332 * b1 + white * 0.0750759;
                 b2 = 0.96900 * b2 + white * 0.1538520;
@@ -258,19 +312,18 @@
         if (type === 'brown') {
             let lastOut = 0.0;
             return () => {
-                lastOut = (lastOut + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+                lastOut = (lastOut + 0.02 * nextWhite()) / 1.02;
                 return lastOut * 3.5;
             };
         }
         // green
         const cutoffHz = 1000;
-        const dt = 1.0 / audioCtx.sampleRate;
-        const rc = 1.0 / (2.0 * Math.PI * cutoffHz);
-        const alpha = rc / (rc + dt);
+        const rc = 1 / (2 * Math.PI * cutoffHz);
+        const alpha = rc / (rc + 1 / audioCtx.sampleRate);
         let lastBrown = 0.0;
         let lastOutput = 0.0;
         return () => {
-            const brown = (lastBrown + 0.02 * (Math.random() * 2 - 1)) / 1.02;
+            const brown = (lastBrown + 0.02 * nextWhite()) / 1.02;
             lastOutput = alpha * (lastOutput + brown - lastBrown);
             lastBrown = brown;
             return lastOutput;
@@ -302,12 +355,7 @@
         return buffer;
     }
 
-    const noiseBuffers = {
-        white: createNoiseBuffer('white'),
-        pink: createNoiseBuffer('pink'),
-        brown: createNoiseBuffer('brown'),
-        green: createNoiseBuffer('green')
-    };
+    const noiseBuffers = Object.fromEntries(noiseTypes.map(type => [type, createNoiseBuffer(type)]));
 
     // Freeze a param at its current value so new automation starts from there.
     function holdParam(param, now) {
@@ -394,29 +442,38 @@
         }, (FADE_SEC + 0.5) * 1000);
     }
 
-    function updateUI() {
-        noiseButtons.forEach(btn => {
-            btn.classList.toggle('active', btn.dataset.noise === currentNoiseType);
-        });
-        timerButton.disabled = !currentNoiseType;
-        timerButton.textContent = timer ? 'Cancel Timer' : 'Start Timer';
-        timerButton.classList.toggle('active', !!timer);
+    function setActive(btn, on) {
+        btn.classList.toggle('active', on);
+        btn.setAttribute('aria-pressed', on);
     }
 
-    // Ramp the master gain from the slider volume (scaled to the time left) down to 0.
-    function scheduleFadeRamp(volume) {
+    function updateUI() {
+        noiseButtons.forEach(btn => setActive(btn, btn.dataset.noise === currentNoiseType));
+        presetButtons.forEach(btn => {
+            btn.disabled = !currentNoiseType;
+            setActive(btn, Number(btn.dataset.mins) === (timer?.minutes ?? 0));
+        });
+        if (!timer) {
+            timerCountdown.textContent = '00:00';
+            timerBar.style.transform = 'scaleX(0)';
+        }
+    }
+
+    // Glide to the slider volume (scaled to the time left), then ramp down to 0 at the end.
+    function scheduleFadeRamp(volume, glide) {
         const now = audioCtx.currentTime;
-        const remaining = Math.max(0, timer.endTime - now);
         const g = masterGain.gain;
-        g.cancelScheduledValues(now);
-        g.setValueAtTime(volume * remaining / timer.duration, now);
-        g.linearRampToValueAtTime(0, timer.endTime);
+        const t = Math.min(now + glide, timer.endTime);
+        holdParam(g, now);
+        g.linearRampToValueAtTime(volume * (timer.endTime - t) / timer.duration, t);
+        if (timer.endTime > t) g.linearRampToValueAtTime(0, timer.endTime);
     }
 
     function updateTimerLabel() {
-        const left = Math.max(0, Math.ceil((timer.endMs - Date.now()) / 1000));
-        const s = String(left % 60).padStart(2, '0');
-        timerLabel.textContent = `Fadeout: ${Math.floor(left / 60)}m ${s}s remaining`;
+        const leftMs = Math.max(0, timer.endMs - Date.now());
+        const left = Math.ceil(leftMs / 1000);
+        timerCountdown.textContent = `${String(Math.floor(left / 60)).padStart(2, '0')}:${String(left % 60).padStart(2, '0')}`;
+        timerBar.style.transform = `scaleX(${leftMs / (timer.duration * 1000)})`;
     }
 
     function startFadeout(minutes) {
@@ -426,13 +483,14 @@
         const duration = minutes * 60;
         const now = audioCtx.currentTime;
         timer = {
+            minutes,
             duration,
             endTime: now + duration,
             endMs: Date.now() + duration * 1000,
             timeout: setTimeout(stopNoise, duration * 1000),
             interval: setInterval(updateTimerLabel, 1000)
         };
-        scheduleFadeRamp(getVolume());
+        scheduleFadeRamp(getVolume(), FADE_SEC);
         updateTimerLabel();
         updateUI();
     }
@@ -442,7 +500,6 @@
         clearTimeout(timer.timeout);
         clearInterval(timer.interval);
         timer = null;
-        timerLabel.textContent = 'Fadeout Timer';
     }
 
     function cancelFadeout() {
@@ -469,15 +526,14 @@
     }
 
     if ('mediaSession' in navigator) {
-        const noiseTypes = Array.from(noiseButtons, btn => btn.dataset.noise);
         const cycleNoise = (step) => {
             const i = noiseTypes.indexOf(currentNoiseType || lastNoiseType);
             playNoise(noiseTypes[(i + step + noiseTypes.length) % noiseTypes.length]);
         };
         const handlers = {
             play: () => playNoise(lastNoiseType),
-            pause: () => stopNoise(),
-            stop: () => stopNoise(),
+            pause: stopNoise,
+            stop: stopNoise,
             nexttrack: () => cycleNoise(1),
             previoustrack: () => cycleNoise(-1)
         };
@@ -490,34 +546,30 @@
     noiseButtons.forEach(btn => {
         btn.addEventListener('click', () => {
             const noiseType = btn.dataset.noise;
-            if (currentNoiseType === noiseType) {
-                stopNoise();
-            } else {
-                playNoise(noiseType);
-            }
+            currentNoiseType === noiseType ? stopNoise() : playNoise(noiseType);
         });
     });
 
     volumeSlider.addEventListener('input', () => {
         const val = getVolume();
-        volTxt.textContent = `${Math.round(val * 100)}%`;
+        volumeSlider.style.setProperty('--p', `${val * 100}%`);
         if (timer) {
-            scheduleFadeRamp(val);
+            scheduleFadeRamp(val, 0.05);
         } else {
             holdParam(masterGain.gain, audioCtx.currentTime);
             masterGain.gain.setTargetAtTime(val, audioCtx.currentTime, 0.01);
         }
     });
 
-    timerButton.addEventListener('click', () => {
-        if (timer) {
-            cancelFadeout();
-            return;
-        }
-        const mins = Math.min(parseFloat(timerInput.value), MAX_TIMER_MINS);
-        if (!(mins > 0)) return;
-        timerInput.value = mins;
-        startFadeout(mins);
+    presetButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const mins = Number(btn.dataset.mins);
+            if (mins && timer?.minutes !== mins) {
+                startFadeout(mins);
+            } else if (timer) {
+                cancelFadeout();
+            }
+        });
     });
 
     updateUI();
