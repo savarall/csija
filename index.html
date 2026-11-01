@@ -108,8 +108,9 @@
             line-height: 1;
             color: #a9a9b3;
         }
-        /* U+1F568/U+1F56A are "right speaker" glyphs that face left. */
-        .icon.speaker { transform: scaleX(-1); }
+        .icon.speaker {
+            font-variant-emoji: text;
+        }
         input[type="range"] {
             -webkit-appearance: none;
             flex: 1;
@@ -210,9 +211,9 @@
     </div>
 
     <div class="control-group row">
-        <span class="icon speaker" aria-hidden="true">&#x1F568;&#xFE0E;</span>
+        <span class="icon speaker" aria-hidden="true">&#x1F508;</span>
         <input type="range" id="volume" min="0" max="1" step="0.01" value="0.70" autocomplete="off" aria-label="Volume">
-        <span class="icon speaker" aria-hidden="true">&#x1F56A;&#xFE0E;</span>
+        <span class="icon speaker" aria-hidden="true">&#x1F50A;</span>
     </div>
 
     <div class="control-group">

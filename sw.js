@@ -1,4 +1,4 @@
-const CACHE_NAME = 'csija-v3';
+const CACHE_NAME = 'csija-v4';
 // Add the URLs of assets you want to cache for offline use
 const ASSETS = [
   './',
